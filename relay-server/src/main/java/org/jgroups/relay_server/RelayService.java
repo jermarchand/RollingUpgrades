@@ -21,15 +21,21 @@ public class RelayService extends RelayServiceGrpc.RelayServiceImplBase {
     public StreamObserver<Request> connect(StreamObserver<Response> responseObserver) {
         return new StreamObserver<Request>() {
             public void onNext(Request req) {
+                
+                System.out.printf("StreamObserver " + req.toString() + "\n");
+
                 if(req.hasMessage()) {
+                    System.out.printf("StreamObserver req.hasMessage from " + req.getMessage().getSender() + "\n");
                     handleMessage(req.getMessage());
                     return;
                 }
                 if(req.hasJoinReq()) {
+                    System.out.printf("StreamObserver req.hasJoinReq\n");
                     handleJoinRequest(req.getJoinReq(), responseObserver);
                     return;
                 }
                 if(req.hasLeaveReq()) {
+                    System.out.printf("StreamObserver req.hasLeaveReq\n");
                     handleLeaveRequest(req.getLeaveReq(), responseObserver);
                     return;
                 }
@@ -51,6 +57,7 @@ public class RelayService extends RelayServiceGrpc.RelayServiceImplBase {
 
     @Override
     public void leave(LeaveRequest req, StreamObserver<Void> responseObserver) {
+        System.out.printf("leave\n");
         final String  cluster=req.getClusterName();
         boolean       removed=false;
         Address       leaver=req.getLeaver();
@@ -82,6 +89,7 @@ public class RelayService extends RelayServiceGrpc.RelayServiceImplBase {
 
     @Override
     public void dump(Void request, StreamObserver<DumpResponse> responseObserver) {
+        System.out.printf("dump\n");
         String result=dumpDiagnostics();
         responseObserver.onNext(DumpResponse.newBuilder().setDump(result).build());
         responseObserver.onCompleted();
@@ -89,6 +97,7 @@ public class RelayService extends RelayServiceGrpc.RelayServiceImplBase {
 
 
     protected void remove(StreamObserver<Response> observer) {
+        System.out.printf("remove\n");
         if(observer == null)
             return;
 
@@ -112,6 +121,7 @@ public class RelayService extends RelayServiceGrpc.RelayServiceImplBase {
     }
 
     protected void handleJoinRequest(JoinRequest join_req, StreamObserver<Response> responseObserver) {
+        System.out.printf("handleJoinRequest\n");
         final String  cluster=join_req.getClusterName();
         final Address joiner=join_req.getAddress();
 
@@ -129,6 +139,7 @@ public class RelayService extends RelayServiceGrpc.RelayServiceImplBase {
     }
 
     protected void handleLeaveRequest(LeaveRequest leave_req, StreamObserver<Response> responseObserver) {
+        System.out.printf("handleLeaveRequest\n");
         final String  cluster=leave_req.getClusterName();
         boolean       removed=false;
         Address       leaver=leave_req.getLeaver();
@@ -157,6 +168,7 @@ public class RelayService extends RelayServiceGrpc.RelayServiceImplBase {
     }
 
     protected void handleMessage(Message msg) {
+        System.out.printf("handleMessagemsg\n");
         String cluster=msg.getClusterName();
         Address dest=msg.hasDestination()? msg.getDestination() : null;
 
@@ -174,12 +186,13 @@ public class RelayService extends RelayServiceGrpc.RelayServiceImplBase {
 
 
     protected void relayToAll(Message msg, SynchronizedMap m) {
+        System.out.printf("relayToAll\n");
         Map<Address,StreamObserver<Response>> map=m.getMap();
         Lock lock=m.getLock();
         lock.lock();
         try {
             if(!map.isEmpty()) {
-                //System.out.printf("-- relaying msg to %d members for cluster %s\n", map.size(), msg.getClusterName());
+                System.out.printf("-- relaying msg to %d members for cluster %s\n", map.size(), msg.getClusterName());
                 Response response=Response.newBuilder().setMessage(msg).build();
                 for(StreamObserver<Response> obs: map.values()) {
                     try {
@@ -198,6 +211,7 @@ public class RelayService extends RelayServiceGrpc.RelayServiceImplBase {
     }
 
     protected void relayTo(Message msg, SynchronizedMap m) {
+        System.out.printf("relayTo\n");
         Address dest=msg.getDestination();
         Map<Address,StreamObserver<Response>> map=m.getMap();
         Lock lock=m.getLock();
@@ -209,7 +223,7 @@ public class RelayService extends RelayServiceGrpc.RelayServiceImplBase {
                 return;
             }
 
-            //System.out.printf("-- relaying msg to member %s for cluster %s\n", dest.getName(), msg.getClusterName());
+            System.out.printf("-- relaying msg to member %s for cluster %s\n", dest.getName(), msg.getClusterName());
             Response response=Response.newBuilder().setMessage(msg).build();
             try {
                 obs.onNext(response);
@@ -226,6 +240,7 @@ public class RelayService extends RelayServiceGrpc.RelayServiceImplBase {
 
 
     protected void postView(Map<Address,StreamObserver<Response>> map) {
+        System.out.printf("postView\n");
         if(map == null || map.isEmpty())
             return;
         View.Builder view_builder=View.newBuilder();
@@ -253,6 +268,7 @@ public class RelayService extends RelayServiceGrpc.RelayServiceImplBase {
     }
 
     protected String dumpDiagnostics() {
+        System.out.printf("dumpDiagnostics\n");
         StringBuilder sb=new StringBuilder();
         sb.append("members:\n");
         dumpViews(sb);
@@ -260,6 +276,7 @@ public class RelayService extends RelayServiceGrpc.RelayServiceImplBase {
     }
 
     protected void dumpViews(final StringBuilder sb) {
+        System.out.printf("dumpViews\n");
         for(Map.Entry<String,SynchronizedMap> entry: members.entrySet()) {
             String cluster=entry.getKey();
             SynchronizedMap m=entry.getValue();

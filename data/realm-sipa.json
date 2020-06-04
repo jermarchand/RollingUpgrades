@@ -1,0 +1,55 @@
+{
+    "id": "sipa",
+    "realm": "sipa",
+    "enabled": true,
+    
+    "privateKey": "<Set Private key>",
+    "publicKey": "<Set public key>",
+    
+    "users": [
+        {
+            "username": "user1@somewhere.com",
+            "enabled": true,
+            "email": "user1@somewhere.com",
+            "credentials": [{ "type": "password", "value": "user1" }]
+        },
+        {
+            "username": "user2@somewhere.com",
+            "enabled": true,
+            "email": "user2@somewhere.com",
+            "credentials": [{ "type": "password", "value": "user2" }]
+        },
+        {
+            "username": "user3@somewhere.com",
+            "enabled": true,
+            "email": "user3@somewhere.com",
+            "credentials": [{ "type": "password", "value": "user3" }]
+        }
+    ],
+
+    "clients": [
+      {
+        "clientId": "client1",
+        "secret": "31eb0040-4b2c-4512-9d1f-1c418b362120",
+        "enabled": true,
+        "clientAuthenticatorType": "client-secret",
+        "redirectUris": [
+          "http://localhost/*"
+        ],
+        "webOrigins": [
+          "*"
+        ],
+
+        "bearerOnly": false,
+        "consentRequired": false,
+        "standardFlowEnabled": true,
+        "implicitFlowEnabled": false,
+        "directAccessGrantsEnabled": true,
+        "serviceAccountsEnabled": true,
+        "publicClient": false,
+        "frontchannelLogout": false,
+        "protocol": "openid-connect",
+        "fullScopeAllowed": true
+      }
+    ]
+  }

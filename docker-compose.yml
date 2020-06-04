@@ -1,0 +1,73 @@
+version: '3'
+
+services:
+
+  relayserver:
+    build: .
+  
+  postgres:
+    image: postgres
+    environment:
+      POSTGRES_DB: keycloak
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: password
+
+  postgres9:
+    image: postgres
+    environment:
+      POSTGRES_DB: keycloak
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: password
+
+  nginx:
+    image: nginx
+    volumes:
+      - ./data/nginx.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      - 8000:80
+
+  keycloak9:
+    image: jboss/keycloak:9.0.3
+    environment:
+      DB_VENDOR: POSTGRES
+      DB_ADDR: postgres9
+      DB_DATABASE: keycloak
+      DB_USER: keycloak
+      DB_SCHEMA: public
+      DB_PASSWORD: password
+      KEYCLOAK_USER: admin
+      KEYCLOAK_PASSWORD: admin
+      KEYCLOAK_IMPORT: /tmp/realm-sipa.json
+      JGROUPS_TCP_ADDRESS: keycloak9
+      JGROUPS_DISCOVERY_PROTOCOL: relay3
+      JGROUPS_DISCOVERY_PROPERTIES: datasource_jndi_name=java:jboss/datasources/KeycloakDS,info_writer_sleep_time=500
+    ports:
+      - 8089:8080
+    volumes:
+      - ./data/realm-sipa.json:/tmp/realm-sipa.json:ro
+      - ./custom-cli/relay39.cli:/opt/jboss/tools/cli/jgroups/discovery/relay3.cli:ro
+      - ./data/relay3/module9.xml:/opt/jboss/keycloak/modules/system/layers/base/org/jgroups/main/module.xml:ro
+      - ./jgroups-41/target/jgroups-41-1.0.0.Final-jar-with-dependencies.jar:/opt/jboss/keycloak/modules/system/layers/base/org/jgroups/main/relay3-1.0.0.Final-jar-with-dependencies.jar:ro
+
+  keycloak6:
+    image: jboss/keycloak:6.0.1
+    environment:
+      DB_VENDOR: POSTGRES
+      DB_ADDR: postgres
+      DB_DATABASE: keycloak
+      DB_USER: keycloak
+      DB_SCHEMA: public
+      DB_PASSWORD: password
+      KEYCLOAK_USER: admin
+      KEYCLOAK_PASSWORD: admin
+      KEYCLOAK_IMPORT: /tmp/realm-sipa.json
+      JGROUPS_TCP_ADDRESS: keycloak6
+      JGROUPS_DISCOVERY_PROTOCOL: relay3
+      JGROUPS_DISCOVERY_PROPERTIES: datasource_jndi_name=java:jboss/datasources/KeycloakDS,info_writer_sleep_time=500
+    ports:
+      - 8086:8080
+    volumes:
+      - ./data/realm-sipa.json:/tmp/realm-sipa.json:ro
+      - ./custom-cli/relay36.cli:/opt/jboss/tools/cli/jgroups/discovery/relay3.cli:ro
+      - ./data/relay3/module6.xml:/opt/jboss/keycloak/modules/system/layers/base/org/jgroups/main/module.xml:ro
+      - ./jgroups-4/target/jgroups-4-1.0.0.Final-jar-with-dependencies.jar:/opt/jboss/keycloak/modules/system/layers/base/org/jgroups/main/relay3-1.0.0.Final-jar-with-dependencies.jar:ro

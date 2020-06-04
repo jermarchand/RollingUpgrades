@@ -36,7 +36,7 @@ public class RELAY3 extends Protocol {
     protected String                                    server_address="localhost";
 
     @Property(description="The port on which the relay server is listening")
-    protected int                                       server_port=50051;
+    protected int                                       server_port=50151;
 
     @ManagedAttribute(description="The local address")
     protected Address                                   local_addr;
@@ -73,7 +73,7 @@ public class RELAY3 extends Protocol {
 
     public void start() throws Exception {
         super.start();
-        channel=ManagedChannelBuilder.forAddress(server_address, server_port).usePlaintext(true).build();
+        channel=ManagedChannelBuilder.forAddress(server_address, server_port).usePlaintext().build();
         asyncStub=RelayServiceGrpc.newStub(channel);
     }
 

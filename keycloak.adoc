@@ -1,0 +1,167 @@
+= Rolling upgrades a Keycloak Infinispan cluster
+
+Rolling Upgrade of a Keycloak 6 cluster to Keycloak 8 is not possible without downtime.
+The Keycloak 8 instances cannot join the Keycloak 6 cluster due to an incompatible JGroup version.
+
+In logs, we found : 
+
+```
+JGRP000006: failed accepting connection from peer:
+packet from /10.133.242.201:57879 has different version (4.1.4) from ours (4.0.18); discarding it
+```
+
+To solve this problem, the solution is to create a relay-server between Infinispan clusters.
+
+I try to use the projet : https://github.com/jgroups-extras/RollingUpgrades[]
+
+
+== Versions
+
+[%header]
+|===
+| Keycloak | JGroups | Infinispan
+| 6        | 4.0.18  | 9.4.8
+| 8        | 4.1.4   | 9.4.16
+| 9        | 4.1.4   | 9.4.16
+|===
+
+
+== Serveur Relay
+
+This server uses protobuff as a pivot protocol between the different versions of the cluster.
+
+For each message received, it dispatch to other known customers.
+
+
+== RELAY3
+
+The RELAY3 class:
+
+- is adapted for each version of JGroups. (`pom.xml`)
+- communicates using protobuf with Relay server
+- is imported at the same time as the JGroups module in Keycloak (`moduleX.xml`)
+- is configured by a cli script (`relay3X.cli`)
+
+== Poc
+
+To lauch Poc
+```
+$ docker-compose up --build
+```
+
+[ditaa]
+----
+
+/-- 8086 -=--------------- 8000 -=------------ 8089 -=-\
+|    |                      |                    |     |   
+|    |               +-------------+             |     |  
+|    |               |             |             |     |  
+|    |               |    Nginx    |             |     | 
+|    |               |             |             |     | 
+|    |               +-----+--+----+             |     | 
+|    |                     ^  ^                  |     | 
+|    |                     |  |                  |     | 
+|    |      +--------------+  +-----------+      |     |
+|    |      |                             |      |     |
+|    |      v                             v      |     |
+| +--+------+--+    +-------------+    +--+------+--+  |
+| |            |    |             |    |            |  |
+| | Keycloak 6 +<-->+ RelayServer +<-->+ Keycloak 9 |  |
+| |            |    |             |    |            |  |
+| +------+-----+    +-------------+    +------+-----+  |
+|        |                                    |        |
+| +------+-----+                       +------+-----+  |
+| |            |                       |            |  |
+| | PostgreSql |                       | PostgreSql |  |
+| |{s}         |                       |{s}         |  |
+| +------------+                       +------------+  |
+|                                                      |
+| Docker-compose.yml                                   |
+\-=----------------------------------------------------/
+
+----
+
+== Results
+
+Today (May 2020) each Keycloak send messages to the relay-server (it appears in logs) ... 
+But the sessions are not shared between the 2 Infinispan clusters.
+
+
+But Keycloak 9 throw a first exception :
+```
+ERROR [org.jgroups.protocols.relay3.RELAY3] (grpc-default-executor-1) exception from server: io.grpc.StatusRuntimeException: CANCELLED: HTTP/2 error code: CANCEL
+Received Rst Stream
+	at org.jgroups@4.1.4.Final//io.grpc.Status.asRuntimeException(Status.java:533)
+	at org.jgroups@4.1.4.Final//io.grpc.stub.ClientCalls$StreamObserverToCallListenerAdapter.onClose(ClientCalls.java:453)
+	at org.jgroups@4.1.4.Final//io.grpc.internal.ClientCallImpl.closeObserver(ClientCallImpl.java:426)
+	at org.jgroups@4.1.4.Final//io.grpc.internal.ClientCallImpl.access$500(ClientCallImpl.java:66)
+	at org.jgroups@4.1.4.Final//io.grpc.internal.ClientCallImpl$ClientStreamListenerImpl.close(ClientCallImpl.java:689)
+	at org.jgroups@4.1.4.Final//io.grpc.internal.ClientCallImpl$ClientStreamListenerImpl.access$900(ClientCallImpl.java:577)
+	at org.jgroups@4.1.4.Final//io.grpc.internal.ClientCallImpl$ClientStreamListenerImpl$1StreamClosed.runInternal(ClientCallImpl.java:751)
+	at org.jgroups@4.1.4.Final//io.grpc.internal.ClientCallImpl$ClientStreamListenerImpl$1StreamClosed.runInContext(ClientCallImpl.java:740)
+	at org.jgroups@4.1.4.Final//io.grpc.internal.ContextRunnable.run(ContextRunnable.java:37)
+	at org.jgroups@4.1.4.Final//io.grpc.internal.SerializingExecutor.run(SerializingExecutor.java:123)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1128)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:628)
+	at java.base/java.lang.Thread.run(Thread.java:834)
+```
+
+Then several others : 
+
+```
+16:00:41,829 WARN  [org.infinispan.topology.ClusterTopologyManagerImpl] (MSC service thread 1-1) ISPN000329: Unable to read rebalancing status from coordinator 9f672980-e36e-408c-7690-5ae07c068eb1: org.infinispan.commons.CacheException: java.lang.IllegalArgumentException: null frame before EOS
+	at org.infinispan@9.4.16.Final//org.infinispan.remoting.transport.jgroups.JGroupsTransport.send(JGroupsTransport.java:1039)
+	at org.infinispan@9.4.16.Final//org.infinispan.remoting.transport.jgroups.JGroupsTransport.sendCommand(JGroupsTransport.java:992)
+	at org.infinispan@9.4.16.Final//org.infinispan.remoting.transport.jgroups.JGroupsTransport.invokeCommand(JGroupsTransport.java:825)
+	at org.infinispan@9.4.16.Final//org.infinispan.remoting.transport.jgroups.JGroupsTransport.performSyncRemoteInvocation(JGroupsTransport.java:1119)
+	at org.infinispan@9.4.16.Final//org.infinispan.remoting.transport.jgroups.JGroupsTransport.invokeRemotelyAsync(JGroupsTransport.java:250)
+	at org.infinispan@9.4.16.Final//org.infinispan.remoting.transport.Transport.invokeRemotely(Transport.java:66)
+	at org.infinispan@9.4.16.Final//org.infinispan.topology.ClusterTopologyManagerImpl.fetchRebalancingStatusFromCoordinator(ClusterTopologyManagerImpl.java:145)
+	at org.infinispan@9.4.16.Final//org.infinispan.topology.ClusterTopologyManagerImpl.start(ClusterTopologyManagerImpl.java:130)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:566)
+	at org.infinispan.commons@9.4.16.Final//org.infinispan.commons.util.SecurityActions.lambda$invokeAccessibly$0(SecurityActions.java:79)
+	at org.infinispan.commons@9.4.16.Final//org.infinispan.commons.util.SecurityActions.doPrivileged(SecurityActions.java:71)
+	at org.infinispan.commons@9.4.16.Final//org.infinispan.commons.util.SecurityActions.invokeAccessibly(SecurityActions.java:76)
+	at org.infinispan.commons@9.4.16.Final//org.infinispan.commons.util.ReflectionUtil.invokeAccessibly(ReflectionUtil.java:181)
+	at org.infinispan@9.4.16.Final//org.infinispan.factories.impl.BasicComponentRegistryImpl.startWrapper(BasicComponentRegistryImpl.java:534)
+	at org.infinispan@9.4.16.Final//org.infinispan.factories.impl.BasicComponentRegistryImpl$ComponentWrapper.running(BasicComponentRegistryImpl.java:723)
+	at org.infinispan@9.4.16.Final//org.infinispan.factories.AbstractComponentRegistry.internalStart(AbstractComponentRegistry.java:428)
+	at org.infinispan@9.4.16.Final//org.infinispan.factories.AbstractComponentRegistry.start(AbstractComponentRegistry.java:325)
+	at org.infinispan@9.4.16.Final//org.infinispan.manager.DefaultCacheManager.internalStart(DefaultCacheManager.java:709)
+	at org.infinispan@9.4.16.Final//org.infinispan.manager.DefaultCacheManager.start(DefaultCacheManager.java:677)
+	at org.jboss.as.clustering.infinispan@18.0.1.Final//org.jboss.as.clustering.infinispan.subsystem.CacheContainerServiceConfigurator.get(CacheContainerServiceConfigurator.java:111)
+	at org.jboss.as.clustering.infinispan@18.0.1.Final//org.jboss.as.clustering.infinispan.subsystem.CacheContainerServiceConfigurator.get(CacheContainerServiceConfigurator.java:73)
+	at org.wildfly.clustering.service@18.0.1.Final//org.wildfly.clustering.service.FunctionalService.start(FunctionalService.java:67)
+	at org.jboss.msc@1.4.11.Final//org.jboss.msc.service.ServiceControllerImpl$StartTask.startService(ServiceControllerImpl.java:1739)
+	at org.jboss.msc@1.4.11.Final//org.jboss.msc.service.ServiceControllerImpl$StartTask.execute(ServiceControllerImpl.java:1701)
+	at org.jboss.msc@1.4.11.Final//org.jboss.msc.service.ServiceControllerImpl$ControllerTask.run(ServiceControllerImpl.java:1559)
+	at org.jboss.threads@2.3.3.Final//org.jboss.threads.ContextClassLoaderSavingRunnable.run(ContextClassLoaderSavingRunnable.java:35)
+	at org.jboss.threads@2.3.3.Final//org.jboss.threads.EnhancedQueueExecutor.safeRun(EnhancedQueueExecutor.java:1982)
+	at org.jboss.threads@2.3.3.Final//org.jboss.threads.EnhancedQueueExecutor$ThreadBody.doRunTask(EnhancedQueueExecutor.java:1486)
+	at org.jboss.threads@2.3.3.Final//org.jboss.threads.EnhancedQueueExecutor$ThreadBody.run(EnhancedQueueExecutor.java:1363)
+	at java.base/java.lang.Thread.run(Thread.java:834)
+Caused by: java.lang.IllegalArgumentException: null frame before EOS
+	at org.jgroups@4.1.4.Final//com.google.common.base.Preconditions.checkArgument(Preconditions.java:142)
+	at org.jgroups@4.1.4.Final//io.grpc.internal.AbstractClientStream.deliverFrame(AbstractClientStream.java:198)
+	at org.jgroups@4.1.4.Final//io.grpc.internal.MessageFramer.commitToSink(MessageFramer.java:352)
+	at org.jgroups@4.1.4.Final//io.grpc.internal.MessageFramer.flush(MessageFramer.java:302)
+	at org.jgroups@4.1.4.Final//io.grpc.internal.AbstractStream.flush(AbstractStream.java:63)
+	at org.jgroups@4.1.4.Final//io.grpc.internal.ForwardingClientStream.flush(ForwardingClientStream.java:42)
+	at org.jgroups@4.1.4.Final//io.grpc.internal.DelayedStream.flush(DelayedStream.java:266)
+	at org.jgroups@4.1.4.Final//io.grpc.internal.ClientCallImpl.sendMessageInternal(ClientCallImpl.java:549)
+	at org.jgroups@4.1.4.Final//io.grpc.internal.ClientCallImpl.sendMessage(ClientCallImpl.java:520)
+	at org.jgroups@4.1.4.Final//io.grpc.stub.ClientCalls$CallToStreamObserverAdapter.onNext(ClientCalls.java:350)
+	at org.jgroups@4.1.4.Final//org.jgroups.protocols.relay3.RELAY3.down(RELAY3.java:153)
+	at org.jgroups@4.1.4.Final//org.jgroups.stack.Protocol.down(Protocol.java:284)
+	at org.jgroups@4.1.4.Final//org.jgroups.fork.ForkProtocol.down(ForkProtocol.java:42)
+	at org.jgroups@4.1.4.Final//org.jgroups.fork.ForkProtocolStack.down(ForkProtocolStack.java:62)
+	at org.jgroups@4.1.4.Final//org.jgroups.fork.ForkChannel.send(ForkChannel.java:222)
+	at org.jgroups@4.1.4.Final//org.jgroups.fork.ForkChannel.send(ForkChannel.java:21)
+	at org.infinispan@9.4.16.Final//org.infinispan.remoting.transport.jgroups.JGroupsTransport.send(JGroupsTransport.java:1035)
+	... 32 more
+
+```
+

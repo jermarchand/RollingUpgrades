@@ -21,16 +21,21 @@ public class RelayClient {
     protected final Address                             local_addr;
     protected View                                      view; // the current view
     protected static final String                       CLUSTER="relay-client";
-
+    
+    protected static int MAX_SIZE = 50 *1024*1024;
 
     public RelayClient(String addr) {
         local_addr=Address.newBuilder().setName(addr).build();
     }
 
-
-
     protected void start(int port) throws InterruptedException {
-        channel=ManagedChannelBuilder.forAddress("localhost", port).usePlaintext(true).build();
+        channel=ManagedChannelBuilder
+            .forAddress("localhost", port)
+            .usePlaintext()
+            .maxInboundMessageSize(MAX_SIZE)
+            .maxInboundMetadataSize(MAX_SIZE)
+            .build();
+        
         asyncStub=RelayServiceGrpc.newStub(channel);
         blocking_stub=RelayServiceGrpc.newBlockingStub(channel);
 
@@ -126,7 +131,7 @@ public class RelayClient {
 
     public static void main(String[] args) throws InterruptedException {
         RelayClient client=new RelayClient(args[0]);
-        client.start(50051);
+        client.start(50151);
         client.stop();
     }
 }

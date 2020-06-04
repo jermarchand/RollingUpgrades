@@ -17,3 +17,6 @@ dist/wildfly/docker/wildfly-openshift.zip
 hs_err_pid*
 target/
 bla*.java
+*.png
+.asciidoctor
+.vscode

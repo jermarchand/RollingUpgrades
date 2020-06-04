@@ -1,0 +1,15 @@
+<module name="org.jgroups" xmlns="urn:jboss:module:1.7">
+
+    <resources>
+        <resource-root path="jgroups-4.0.18.Final.jar"/>
+        <resource-root path="relay3-1.0.0.Final-jar-with-dependencies.jar"/>
+    </resources>
+
+    <dependencies>
+        <module name="javax.api"/>
+        <module name="org.jgroups.azure"/>
+        <module name="org.jgroups.kubernetes"/>
+        <module name="org.slf4j"/>
+    </dependencies>
+
+</module>

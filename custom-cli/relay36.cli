@@ -1,0 +1,177 @@
+embed-server --server-config=standalone-ha.xml --std-out=echo
+batch
+
+/subsystem=logging/logger=org.keycloak.events:add
+/subsystem=logging/logger=org.keycloak.events:write-attribute(name="level", value="DEBUG")
+
+/subsystem=undertow/server=default-server/http-listener=default:write-attribute(name=proxy-address-forwarding,value=true)
+
+/subsystem=logging/logger=org.keycloak.cluster.infinispan:add
+/subsystem=logging/logger=org.keycloak.cluster.infinispan:write-attribute(name="level", value="DEBUG")
+/subsystem=logging/logger=org.keycloak.connections.infinispan:add
+/subsystem=logging/logger=org.keycloak.connections.infinispan:write-attribute(name="level", value="DEBUG")
+/subsystem=logging/logger=org.keycloak.models.cache.infinispan:add
+/subsystem=logging/logger=org.keycloak.models.cache.infinispan:write-attribute(name="level", value="DEBUG")
+/subsystem=logging/logger=org.keycloak.models.sessions.infinispan:add
+/subsystem=logging/logger=org.keycloak.models.sessions.infinispan:write-attribute(name="level", value="DEBUG")
+
+/subsystem=logging/logger=org.jgroups:add
+/subsystem=logging/logger=org.jgroups:write-attribute(name="level", value="DEBUG")
+
+# Use replicated-cache instead of distributed cache
+/subsystem=infinispan/cache-container=keycloak/distributed-cache=sessions:remove()
+/subsystem=infinispan/cache-container=keycloak/replicated-cache=sessions:add(statistics-enabled=true)
+
+/subsystem=infinispan/cache-container=keycloak/distributed-cache=authenticationSessions:remove()
+/subsystem=infinispan/cache-container=keycloak/replicated-cache=authenticationSessions:add(statistics-enabled=true)
+
+/subsystem=infinispan/cache-container=keycloak/distributed-cache=offlineSessions:remove()
+/subsystem=infinispan/cache-container=keycloak/replicated-cache=offlineSessions:add(statistics-enabled=true)
+
+/subsystem=infinispan/cache-container=keycloak/distributed-cache=clientSessions:remove()
+/subsystem=infinispan/cache-container=keycloak/replicated-cache=clientSessions:add(statistics-enabled=true)
+
+/subsystem=infinispan/cache-container=keycloak/distributed-cache=offlineClientSessions:remove()
+/subsystem=infinispan/cache-container=keycloak/replicated-cache=offlineClientSessions:add(statistics-enabled=true)
+
+/subsystem=infinispan/cache-container=keycloak/distributed-cache=loginFailures:remove()
+/subsystem=infinispan/cache-container=keycloak/replicated-cache=loginFailures:add(statistics-enabled=true)         
+
+/subsystem=infinispan/ \
+    cache-container=keycloak/ \
+    distributed-cache=actionTokens/ \
+    :write-attribute(name=owners,value=2)
+
+/subsystem=jgroups/stack=tcp/protocol=MERGE3:remove()
+/subsystem=jgroups/stack=tcp/protocol=FD_SOCK:remove()
+/subsystem=jgroups/stack=tcp/protocol=FD_ALL:remove()
+/subsystem=jgroups/stack=tcp/protocol=VERIFY_SUSPECT:remove()
+/subsystem=jgroups/stack=tcp/protocol=pbcast.NAKACK2:remove()
+/subsystem=jgroups/stack=tcp/protocol=UNICAST3:remove()
+/subsystem=jgroups/stack=tcp/protocol=pbcast.STABLE:remove()
+/subsystem=jgroups/stack=tcp/protocol=pbcast.GMS:remove()
+/subsystem=jgroups/stack=tcp/protocol=MFC:remove()
+/subsystem=jgroups/stack=tcp/protocol=FRAG3:remove()
+/subsystem=jgroups/stack=tcp/protocol=MPING:remove()
+/socket-binding-group=standard-sockets/socket-binding=jgroups-mping:remove()
+
+/subsystem=jgroups/channel=ee:write-attribute(name=stack,value=tcp)
+
+
+/subsystem=datasources/ \
+    data-source=JGroupsDS:add(jndi-name="java:jboss/datasources/JGroups", \
+    connection-url="jdbc:postgresql://postgres/keycloak",\
+    flush-strategy=IdleConnections, \
+    driver-name=postgresql, \
+    user-name=keycloak, \
+    password=password, \
+    check-valid-connection-sql="SELECT 1", \
+    background-validation=true, \
+    background-validation-millis=60000\
+)
+
+/subsystem=jgroups/ \
+    stack=tcp/ \
+    protocol=org.jgroups.protocols.JDBC_PING:add(properties=[datasource_jndi_name="java:jboss/datasources/JGroups"]) 
+
+/subsystem=jgroups/ \
+    stack=tcp/ \
+    protocol=org.jgroups.protocols.JDBC_PING/ \
+    property=initialize_sql:add(value="\
+           CREATE TABLE IF NOT EXISTS JGROUPSPING \
+           (own_addr varchar(200) NOT NULL, \
+           bind_addr varchar(200) NOT NULL, \
+           created timestamp NOT NULL, \
+           cluster_name varchar(200) NOT NULL, \
+           ping_data BYTEA DEFAULT NULL, \
+           constraint PK_JGROUPSPING PRIMARY KEY (own_addr, cluster_name))" \
+           )
+
+/subsystem=jgroups/ \
+    stack=tcp/ \
+    protocol=org.jgroups.protocols.JDBC_PING/ \
+    property=insert_single_sql:add(value="\
+        INSERT INTO JGROUPSPING (own_addr, bind_addr, created, cluster_name, ping_data) values (?,'${jgroups.tcp.address:keycloak6}',NOW(), ?, ?)" \
+    )
+
+/subsystem=jgroups/ \
+    stack=tcp/ \
+    protocol=org.jgroups.protocols.JDBC_PING/ \
+    property=delete_single_sql:add(value="\
+        DELETE FROM JGROUPSPING WHERE own_addr=? AND cluster_name=?" \
+    )
+
+/subsystem=jgroups/ \
+    stack=tcp/ \
+    protocol=org.jgroups.protocols.JDBC_PING/ \
+    property=select_all_pingdata_sql:add(value="\
+        SELECT ping_data FROM JGROUPSPING WHERE cluster_name=?" \
+    )
+
+/subsystem=jgroups/stack=tcp/protocol=MERGE3:add()
+/subsystem=jgroups/stack=tcp/protocol=MERGE3/property=min_interval:add(value=10000)
+/subsystem=jgroups/stack=tcp/protocol=MERGE3/property=max_interval:add(value=30000)
+
+/subsystem=jgroups/stack=tcp/protocol=FD_SOCK:add()
+
+/subsystem=jgroups/stack=tcp/protocol=FD_ALL:add()
+/subsystem=jgroups/stack=tcp/protocol=FD_ALL/property=timeout:add(value=20000)
+/subsystem=jgroups/stack=tcp/protocol=FD_ALL/property=interval:add(value=5000)
+
+/subsystem=jgroups/stack=tcp/protocol=VERIFY_SUSPECT:add()
+/subsystem=jgroups/stack=tcp/protocol=VERIFY_SUSPECT/property=timeout:add(value=1500)
+
+/subsystem=jgroups/stack=tcp/protocol=pbcast.NAKACK2:add()
+/subsystem=jgroups/stack=tcp/protocol=pbcast.NAKACK2/property=use_mcast_xmit:add(value=false)
+/subsystem=jgroups/stack=tcp/protocol=pbcast.NAKACK2/property=discard_delivered_msgs:add(value=true)
+
+/subsystem=jgroups/stack=tcp/protocol=UNICAST3:add()
+
+/subsystem=jgroups/stack=tcp/protocol=pbcast.STABLE:add()
+/subsystem=jgroups/stack=tcp/protocol=pbcast.STABLE/property=desired_avg_gossip:add(value=50000)
+/subsystem=jgroups/stack=tcp/protocol=pbcast.STABLE/property=max_bytes:add(value=4M)
+
+/subsystem=jgroups/stack=tcp/protocol=pbcast.GMS:add()
+/subsystem=jgroups/stack=tcp/protocol=pbcast.GMS/property=print_local_addr:add(value=true)
+/subsystem=jgroups/stack=tcp/protocol=pbcast.GMS/property=join_timeout:add(value=2000)
+
+/subsystem=jgroups/stack=tcp/protocol=MFC:add()
+/subsystem=jgroups/stack=tcp/protocol=MFC/property=max_credits:add(value=2M)
+/subsystem=jgroups/stack=tcp/protocol=MFC/property=min_threshold:add(value=0.4)
+
+/subsystem=jgroups/stack=tcp/protocol=FRAG3:add()
+/subsystem=jgroups/stack=tcp/protocol=FRAG3/property=frag_size:add(value=60K)
+
+/subsystem=jgroups/stack=tcp/protocol=org.jgroups.protocols.JDBC_PING/property=remove_all_data_on_view_change:add(value="true")
+
+/subsystem=datasources/data-source=KeycloakDS:write-attribute(name=statistics-enabled,value=true)
+
+#/subsystem=jgroups/stack=udp/protocol=PING:remove()
+#/subsystem=jgroups/stack=udp/protocol=dns.DNS_PING:add(add-index=0, properties=$keycloak_jgroups_discovery_protocol_properties)
+#
+#/subsystem=jgroups/stack=tcp/protocol=MPING:remove()
+#/subsystem=jgroups/stack=tcp/protocol=dns.DNS_PING:add(add-index=0, properties=$keycloak_jgroups_discovery_protocol_properties)
+#
+#
+/subsystem=jgroups/ \
+    stack=tcp/ \
+    protocol=org.jgroups.protocols.relay3.RELAY3:add( ) 
+
+/subsystem=jgroups/ \
+    stack=tcp/ \
+    protocol=org.jgroups.protocols.relay3.RELAY3/ \
+    property=server_address:add(value="relayserver" \
+    )
+/subsystem=jgroups/ \
+    stack=tcp/ \
+    protocol=org.jgroups.protocols.relay3.RELAY3/ \
+    property=server_port:add(value="50151" \
+    )
+/subsystem=jgroups/ \
+    stack=tcp/ \
+    protocol=org.jgroups.protocols.relay3.RELAY3/ \
+    property=active:add(value="true" \
+    )
+
+run-batch
+stop-embedded-server

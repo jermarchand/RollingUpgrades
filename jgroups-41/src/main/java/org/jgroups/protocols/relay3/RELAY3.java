@@ -67,7 +67,7 @@ public class RELAY3 extends Protocol {
 
     public RELAY3(){
         LOGGER.info("====================================");
-        LOGGER.info("  Constructor RELAY3 jgroups 4.0");
+        LOGGER.info("  Constructor RELAY3 jgroups 4.1");
         LOGGER.info("==================================== ");
     }
 
@@ -88,7 +88,7 @@ public class RELAY3 extends Protocol {
     }
 
 
-    public void start() throws Exception {
+    public void start() throws Exception {       
         super.start();
 
         LOGGER.info("======================== start " + server_address + ":"+ server_port) ;
@@ -160,6 +160,7 @@ public class RELAY3 extends Protocol {
     protected synchronized void connect(String cluster) {
         send_stream=asyncStub.connect(new StreamObserver<Response>() {
             public void onNext(Response rsp) {
+                LOGGER.info("============== onNext");
                 if(rsp.hasMessage()) {
                     handleMessage(rsp.getMessage());
                     return;
@@ -172,11 +173,11 @@ public class RELAY3 extends Protocol {
             }
 
             public void onError(Throwable t) {
-                log.error("exception from server: %s", t);
+                LOGGER.error("exception from server", t);
             }
 
             public void onCompleted() {
-                log.debug("server is done");
+                LOGGER.info("server is done");
             }
         });
         org.jgroups.relay_server.Address pbuf_addr=jgroupsAddressToProtobufAddress(local_addr);
@@ -217,6 +218,7 @@ public class RELAY3 extends Protocol {
     protected static org.jgroups.relay_server.Address jgroupsAddressToProtobufAddress(Address jgroups_addr) {
         if(jgroups_addr == null)
             return org.jgroups.relay_server.Address.newBuilder().build();
+
         if(!(jgroups_addr instanceof org.jgroups.util.UUID))
             throw new IllegalArgumentException(String.format("JGroups address has to be of type UUID but is %s",
                                                              jgroups_addr.getClass().getSimpleName()));
@@ -227,11 +229,10 @@ public class RELAY3 extends Protocol {
           .setLeastSig(uuid.getLeastSignificantBits()).setMostSig(uuid.getMostSignificantBits()).build();
 
         if (name == null) {
-            name = "keycloak6";
+            name = "keycloak9";
         }
 
-        LOGGER.info("==================================== jgroupsAddressToProtobufAddress" + pbuf_uuid + " " + name);
-        LOGGER.info(NameCache.printCache());
+        LOGGER.info("==================================== NameCache : " + NameCache.printCache());
 
         return org.jgroups.relay_server.Address.newBuilder().setUuid(pbuf_uuid).setName(name).build();
     }

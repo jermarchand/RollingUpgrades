@@ -9,13 +9,13 @@
       <relativePath>../pom.xml</relativePath>
    </parent>
 
-   <artifactId>jgroups-4</artifactId>
+   <artifactId>jgroups-41</artifactId>
    <packaging>jar</packaging>
-   <name>jgroups-4</name>
-   <description>Protocol for JGroups 4.x</description>
+   <name>jgroups-41</name>
+   <description>Protocol for JGroups 4.1.x</description>
 
     <properties>
-        <version.jgroups>4.0.18.Final</version.jgroups>
+        <version.jgroups>4.1.4.Final</version.jgroups>
     </properties>
   <build>
     <plugins>
@@ -58,7 +58,6 @@
             <version>1.7.26</version>
             <scope>provided</scope>
         </dependency>
-
    </dependencies>
 
 

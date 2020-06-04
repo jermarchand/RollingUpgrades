@@ -28,7 +28,7 @@ public class RelayServer {
     }
 
     public static void main(String[] args) throws Exception {
-        int port=50051;
+        int port=50151;
         RelayServer srv=new RelayServer();
         for(int i=0; i < args.length; i++) {
             if(args[i].equals("-p") || args[i].equals("-port")) {

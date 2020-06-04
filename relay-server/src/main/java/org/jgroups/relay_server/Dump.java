@@ -15,7 +15,7 @@ public class Dump {
 
 
     protected void start(String host, int port) throws InterruptedException {
-        channel=ManagedChannelBuilder.forAddress(host, port).usePlaintext(true).build();
+        channel=ManagedChannelBuilder.forAddress(host, port).usePlaintext().build();
         blocking_stub=RelayServiceGrpc.newBlockingStub(channel);
         DumpResponse response=blocking_stub.dump(Void.newBuilder().build());
         System.out.printf("%s\n", response.getDump());
@@ -28,7 +28,7 @@ public class Dump {
 
     public static void main(String[] args) throws InterruptedException {
         String host="localhost";
-        int port=50051;
+        int port=50151;
         Dump client=new Dump();
         for(int i=0; i < args.length; i++) {
             if(args[i].equals("-host")) {

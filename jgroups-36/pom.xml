@@ -17,7 +17,27 @@
     <properties>
         <version.jgroups>3.6.15.Final</version.jgroups>
     </properties>
-
+  <build>
+    <plugins>
+      <!-- any other plugins -->
+      <plugin>
+        <artifactId>maven-assembly-plugin</artifactId>
+        <executions>
+          <execution>
+            <phase>package</phase>
+            <goals>
+              <goal>single</goal>
+            </goals>
+          </execution>
+        </executions>
+        <configuration>
+          <descriptorRefs>
+            <descriptorRef>jar-with-dependencies</descriptorRef>
+          </descriptorRefs>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
    <dependencies>
       
       <dependency>
@@ -32,6 +52,12 @@
          <version>${version.jgroups}</version>
       </dependency>
       
+      <dependency>
+         <groupId>org.postgresql</groupId>
+         <artifactId>postgresql</artifactId>
+         <version>42.2.12</version>
+      </dependency>
+
    </dependencies>
 
 

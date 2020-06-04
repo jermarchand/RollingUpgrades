@@ -9,7 +9,7 @@
         xmlns="urn:org:jgroups"
         xsi:schemaLocation="urn:org:jgroups http://www.jgroups.org/schema/jgroups.xsd">
     <TCP
-            bind_addr="localhost"
+            bind_addr="testjma"
             bind_port="7600"
             recv_buf_size="${tcp.recv_buf_size:130k}"
             send_buf_size="${tcp.send_buf_size:130k}"
@@ -20,8 +20,8 @@
             thread_pool.max_threads="20"
             thread_pool.keep_alive_time="30000"/>
 
-    <MPING />
-    <!--
+    <!-- picked a different mcast_addr/port mainly to not find members from clusters on different versions -->
+    <!-- <MPING mcast_addr="229.7.8.9" mcast_port="8546"/> -->
     <JDBC_PING 
 
        connection_url="jdbc:postgresql://postgres/keycloak"
@@ -31,15 +31,16 @@
 
        initialize_sql="CREATE TABLE IF NOT EXISTS JGROUPSPING (own_addr varchar(200) NOT NULL, bind_addr varchar(200), created timestamp DEFAULT NULL, cluster_name varchar(200) NOT NULL, ping_data BYTEA DEFAULT NULL, constraint PK_JGROUPSPING PRIMARY KEY (own_addr, cluster_name))"
 
-       insert_single_sql="INSERT INTO JGROUPSPING (own_addr, bind_addr, created, cluster_name, ping_data) values (?,'${jgroups.tcp.address:testjma}',NOW(), ?, ?)"
+       insert_single_sql="INSERT INTO JGROUPSPING (own_addr, bind_addr, created, cluster_name, ping_data) values (?,'${tcp.address:testjma}',NOW(), ?, ?)"
 
        delete_single_sql="DELETE FROM JGROUPSPING WHERE own_addr=? AND cluster_name=?"
 
        select_all_pingdata_sql="SELECT ping_data FROM JGROUPSPING WHERE cluster_name=?"
+
    />
-   -->
-    <MERGE3 min_interval="10000"
-            max_interval="30000"/>
+
+    <MERGE3  min_interval="10000"
+             max_interval="30000"/>
     <FD_SOCK/>
     <FD_ALL timeout="20000" interval="5000" />
     <VERIFY_SUSPECT timeout="1500"  />
@@ -52,9 +53,9 @@
     <MFC max_credits="2M"
          min_threshold="0.4"/>
     <FRAG2 frag_size="60K"  />
-   
-    <relay3.RELAY3 active="true"
+    
+    <!-- <relay3.RELAY3 active="true"
                    server_address="192.168.0.119"
-                   server_port="50151"/>
-
+                   server_port="50151"/> -->
+                   
 </config>
